@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام إدارة قطع الغيار - مسح QR Code</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- إضافة مكتبة مسح QR Code -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <style>
+        /* نفس كود CSS الذي أرفقته سابقًا */
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100% ); color: #333; min-height: 100vh; padding: 20px; display: flex; justify-content: center; align-items: center; }
+        .container { width: 100%; max-width: 800px; background: white; border-radius: 15px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); overflow: hidden; }
+        header { background: #4a00e0; color: white; padding: 20px; text-align: center; position: relative; }
+        header h1 { font-size: 24px; margin-bottom: 10px; }
+        .main-content { padding: 20px; }
+        .scan-section { margin-bottom: 30px; text-align: center; }
+        .scan-btn { background: #4a00e0; color: white; border: none; padding: 12px 25px; border-radius: 50px; font-size: 16px; cursor: pointer; display: inline-flex; align-items: center; gap: 10px; transition: all 0.3s; box-shadow: 0 4px 10px rgba(74, 0, 224, 0.3); }
+        .scan-btn:hover { background: #3a00c0; transform: translateY(-2px); }
+        /* إضافة لتنسيق نافذة الكاميرا */
+        #qr-reader { width: 100%; max-width: 500px; margin: 20px auto; border: 2px solid #ddd; border-radius: 10px; }
+        #qr-reader-results { display: none; }
+        .manual-input { margin-top: 15px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+        .manual-input input { padding: 8px 12px; border: 1px solid #ddd; border-radius: 5px; width: 200px; }
+        .manual-input button { background: #17a2b8; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; }
+        .form-section { background: #f8f9fa; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: 600; color: #444; }
+        input { width: 100%; padding: 12px 15px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px; transition: border 0.3s; }
+        input:focus { border-color: #4a00e0; outline: none; }
+        .item-code { background: #e9ecef; font-weight: bold; }
+        .action-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 30px; }
+        .btn { padding: 15px; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 10px; transition: all 0.3s; }
+        .save-btn { background: #28a745; color: white; }
+        .share-btn { background: #17a2b8; color: white; }
+        .data-table { width: 100%; border-collapse: collapse; margin-top: 20px; display: none; }
+        .data-table th, .data-table td { border: 1px solid #ddd; padding: 12px; text-align: right; }
+        .data-table th { background: #4a00e0; color: white; }
+        .status-message { padding: 10px; margin: 10px 0; border-radius: 5px; text-align: center; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>نظام إدارة قطع الغيار</h1>
+        </header>
+        
+        <div class="main-content">
+            <div id="statusMessage" class="status-message" style="display: none;"></div>
+            
+            <div class="scan-section">
+                <!-- إضافة حاوية الكاميرا -->
+                <div id="qr-reader" style="display: none;"></div>
+                <div id="qr-reader-results"></div>
+
+                <button class="scan-btn" id="startScan">
+                    <i class="fas fa-camera"></i>
+                    بدء مسح QR Code
+                </button>
+                
+                <div class="manual-input">
+                    <input type="text" id="manualCode" placeholder="أو أدخل كود الصنف يدوياً">
+                    <button id="addManualCode"><i class="fas fa-plus"></i> إضافة</button>
+                </div>
+            </div>
+            
+            <div class="form-section">
+                <div class="form-group">
+                    <label for="itemCode">كود الصنف</label>
+                    <input type="text" id="itemCode" class="item-code" readonly placeholder="سيظهر كود الصنف هنا بعد المسح">
+                </div>
+                <div class="form-group">
+                    <label for="recipient">اسم المستلم</label>
+                    <input type="text" id="recipient" placeholder="أدخل اسم المستلم">
+                </div>
+                <div class="form-group">
+                    <label for="machine">اسم الماكينة</label>
+                    <input type="text" id="machine" placeholder="أدخل اسم الماكينة">
+                </div>
+            </div>
+            
+            <div class="action-buttons">
+                <button class="btn save-btn" id="saveBtn"><i class="fas fa-save"></i> حفظ البيانات</button>
+                <button class="btn share-btn" id="shareBtn"><i class="fas fa-share-alt"></i> مشاركة</button>
+            </div>
+            
+            <table class="data-table" id="dataTable">
+                <thead>
+                    <tr>
+                        <th>كود الصنف</th>
+                        <th>اسم المستلم</th>
+                        <th>اسم الماكينة</th>
+                        <th>التاريخ</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        let scannedData = [];
+        let html5QrCode = null;
+
+        function showStatusMessage(message, type) {
+            const statusElement = document.getElementById('statusMessage');
+            statusElement.textContent = message;
+            statusElement.className = 'status-message ' + type;
+            statusElement.style.display = 'block';
+            setTimeout(() => { statusElement.style.display = 'none'; }, 5000);
+        }
+
+        // دالة النجاح عند مسح الكود
+        function onScanSuccess(decodedText, decodedResult) {
+            document.getElementById('itemCode').value = decodedText;
+            showStatusMessage(`تم مسح الكود بنجاح: ${decodedText}`, 'success');
+            
+            // إيقاف الكاميرا بعد النجاح
+            stopScan();
+        }
+
+        // دالة لبدء المسح
+        function startScan() {
+            const qrReaderElement = document.getElementById('qr-reader');
+            qrReaderElement.style.display = 'block'; // إظهار نافذة الكاميرا
+            document.getElementById('startScan').style.display = 'none'; // إخفاء الزر
+
+            html5QrCode = new Html5Qrcode("qr-reader");
+            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+            // طلب استخدام الكاميرا الخلفية
+            html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
+                .catch(err => {
+                    showStatusMessage('فشل في تشغيل الكاميرا. تأكد من منح الإذن.', 'error');
+                    console.error(err);
+                    stopScan(); // إيقاف وإخفاء كل شيء إذا فشل
+                });
+        }
+
+        // دالة لإيقاف المسح
+        function stopScan() {
+            if (html5QrCode && html5QrCode.isScanning) {
+                html5QrCode.stop().then(() => {
+                    document.getElementById('qr-reader').style.display = 'none';
+                    document.getElementById('startScan').style.display = 'inline-flex';
+                }).catch(err => console.error("فشل إيقاف الكاميرا", err));
+            } else {
+                document.getElementById('qr-reader').style.display = 'none';
+                document.getElementById('startScan').style.display = 'inline-flex';
+            }
+        }
+
+        function addManualCode() {
+            const manualCode = document.getElementById('manualCode').value.trim();
+            if (manualCode) {
+                document.getElementById('itemCode').value = manualCode;
+                document.getElementById('manualCode').value = '';
+                showStatusMessage('تم إضافة الكود يدوياً.', 'success');
+            } else {
+                showStatusMessage('يرجى إدخال كود الصنف أولاً', 'error');
+            }
+        }
+
+        function saveData() {
+            const itemCode = document.getElementById('itemCode').value;
+            const recipient = document.getElementById('recipient').value;
+            const machine = document.getElementById('machine').value;
+
+            if (!itemCode || !recipient || !machine) {
+                showStatusMessage('يرجى ملء جميع الحقول', 'error');
+                return;
+            }
+
+            const newData = {
+                itemCode,
+                recipient,
+                machine,
+                date: new Date().toLocaleString('ar-EG')
+            };
+            scannedData.push(newData);
+            updateTable();
+
+            document.getElementById('itemCode').value = '';
+            document.getElementById('recipient').value = '';
+            document.getElementById('machine').value = '';
+            showStatusMessage('تم حفظ البيانات بنجاح!', 'success');
+        }
+
+        function updateTable() {
+            const tableBody = document.getElementById('tableBody');
+            const dataTable = document.getElementById('dataTable');
+            tableBody.innerHTML = '';
+            scannedData.forEach(data => {
+                const row = document.createElement('tr');
+                row.innerHTML = `<td>${data.itemCode}</td><td>${data.recipient}</td><td>${data.machine}</td><td>${data.date}</td>`;
+                tableBody.appendChild(row);
+            });
+            if (scannedData.length > 0) {
+                dataTable.style.display = 'table';
+            }
+        }
+
+        // استخدم نفس دالة المشاركة المعدلة من الرد السابق
+        function shareFile() {
+            if (scannedData.length === 0) {
+                showStatusMessage('لا توجد بيانات لمشاركتها', 'error');
+                return;
+            }
+            let shareText = "بيانات قطع الغيار:\n\n";
+            scannedData.forEach(data => {
+                shareText += `كود الصنف: ${data.itemCode}\nاسم المستلم: ${data.recipient}\nاسم الماكينة: ${data.machine}\nالتاريخ: ${data.date}\n\n`;
+            });
+            const choice = prompt("اختر طريقة المشاركة:\n1. واتساب\n2. بريد إلكتروني\n3. تحميل ملف Excel");
+            switch (choice) {
+                case '1':
+                    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(shareText )}`, '_blank');
+                    break;
+                case '2':
+                    window.open(`mailto:?subject=بيانات قطع الغيار&body=${encodeURIComponent(shareText)}`);
+                    break;
+                case '3':
+                    const worksheet = XLSX.utils.json_to_sheet(scannedData);
+                    const workbook = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(workbook, worksheet, 'قطع الغيار');
+                    const dateStr = new Date().toISOString().slice(0, 10);
+                    XLSX.writeFile(workbook, `قطع_الغيار_${dateStr}.xlsx`);
+                    break;
+                default:
+                    if (choice) showStatusMessage('خيار غير صالح.', 'error');
+                    break;
+            }
+        }
+
+        // تهيئة التطبيق
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('startScan').addEventListener('click', startScan);
+            document.getElementById('addManualCode').addEventListener('click', addManualCode);
+            document.getElementById('saveBtn').addEventListener('click', saveData);
+            document.getElementById('shareBtn').addEventListener('click', shareFile);
+        });
+    </script>
+</body>
+</html>
