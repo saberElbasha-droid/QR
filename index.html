@@ -6,10 +6,9 @@
     <title>نظام إدارة قطع الغيار - مسح QR Code</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <!-- إضافة مكتبة مسح QR Code -->
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <style>
-        /* نفس كود CSS الذي أرفقته سابقًا */
+        /* نفس كود CSS بدون تغيير */
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100% ); color: #333; min-height: 100vh; padding: 20px; display: flex; justify-content: center; align-items: center; }
         .container { width: 100%; max-width: 800px; background: white; border-radius: 15px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); overflow: hidden; }
@@ -19,7 +18,6 @@
         .scan-section { margin-bottom: 30px; text-align: center; }
         .scan-btn { background: #4a00e0; color: white; border: none; padding: 12px 25px; border-radius: 50px; font-size: 16px; cursor: pointer; display: inline-flex; align-items: center; gap: 10px; transition: all 0.3s; box-shadow: 0 4px 10px rgba(74, 0, 224, 0.3); }
         .scan-btn:hover { background: #3a00c0; transform: translateY(-2px); }
-        /* إضافة لتنسيق نافذة الكاميرا */
         #qr-reader { width: 100%; max-width: 500px; margin: 20px auto; border: 2px solid #ddd; border-radius: 10px; }
         #qr-reader-results { display: none; }
         .manual-input { margin-top: 15px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
@@ -53,7 +51,6 @@
             <div id="statusMessage" class="status-message" style="display: none;"></div>
             
             <div class="scan-section">
-                <!-- إضافة حاوية الكاميرا -->
                 <div id="qr-reader" style="display: none;"></div>
                 <div id="qr-reader-results"></div>
 
@@ -73,10 +70,19 @@
                     <label for="itemCode">كود الصنف</label>
                     <input type="text" id="itemCode" class="item-code" readonly placeholder="سيظهر كود الصنف هنا بعد المسح">
                 </div>
+
+                <!-- === بداية التعديل: إضافة حقل الكمية === -->
+                <div class="form-group">
+                    <label for="quantity">الكمية</label>
+                    <input type="number" id="quantity" placeholder="أدخل الكمية" value="1" min="1">
+                </div>
+                <!-- === نهاية التعديل === -->
+
                 <div class="form-group">
                     <label for="recipient">اسم المستلم</label>
                     <input type="text" id="recipient" placeholder="أدخل اسم المستلم">
                 </div>
+                
                 <div class="form-group">
                     <label for="machine">اسم الماكينة</label>
                     <input type="text" id="machine" placeholder="أدخل اسم الماكينة">
@@ -92,6 +98,9 @@
                 <thead>
                     <tr>
                         <th>كود الصنف</th>
+                        <!-- === بداية التعديل: إضافة عمود الكمية === -->
+                        <th>الكمية</th>
+                        <!-- === نهاية التعديل === -->
                         <th>اسم المستلم</th>
                         <th>اسم الماكينة</th>
                         <th>التاريخ</th>
@@ -114,34 +123,27 @@
             setTimeout(() => { statusElement.style.display = 'none'; }, 5000);
         }
 
-        // دالة النجاح عند مسح الكود
         function onScanSuccess(decodedText, decodedResult) {
             document.getElementById('itemCode').value = decodedText;
             showStatusMessage(`تم مسح الكود بنجاح: ${decodedText}`, 'success');
-            
-            // إيقاف الكاميرا بعد النجاح
             stopScan();
         }
 
-        // دالة لبدء المسح
         function startScan() {
             const qrReaderElement = document.getElementById('qr-reader');
-            qrReaderElement.style.display = 'block'; // إظهار نافذة الكاميرا
-            document.getElementById('startScan').style.display = 'none'; // إخفاء الزر
+            qrReaderElement.style.display = 'block';
+            document.getElementById('startScan').style.display = 'none';
 
             html5QrCode = new Html5Qrcode("qr-reader");
             const config = { fps: 10, qrbox: { width: 250, height: 250 } };
 
-            // طلب استخدام الكاميرا الخلفية
             html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
                 .catch(err => {
                     showStatusMessage('فشل في تشغيل الكاميرا. تأكد من منح الإذن.', 'error');
-                    console.error(err);
-                    stopScan(); // إيقاف وإخفاء كل شيء إذا فشل
+                    stopScan();
                 });
         }
 
-        // دالة لإيقاف المسح
         function stopScan() {
             if (html5QrCode && html5QrCode.isScanning) {
                 html5QrCode.stop().then(() => {
@@ -165,46 +167,62 @@
             }
         }
 
+        // === بداية التعديل: تحديث دالة حفظ البيانات ===
         function saveData() {
             const itemCode = document.getElementById('itemCode').value;
+            const quantity = document.getElementById('quantity').value; // <-- إضافة الكمية
             const recipient = document.getElementById('recipient').value;
             const machine = document.getElementById('machine').value;
 
-            if (!itemCode || !recipient || !machine) {
+            // تحديث شرط التحقق ليشمل الكمية
+            if (!itemCode || !quantity || !recipient || !machine) {
                 showStatusMessage('يرجى ملء جميع الحقول', 'error');
                 return;
             }
 
             const newData = {
-                itemCode,
-                recipient,
-                machine,
-                date: new Date().toLocaleString('ar-EG')
+                "كود الصنف": itemCode, // تغيير أسماء الحقول لتطابق رؤوس الأعمدة
+                "الكمية": quantity,
+                "اسم المستلم": recipient,
+                "اسم الماكينة": machine,
+                "التاريخ": new Date().toLocaleString('ar-EG')
             };
             scannedData.push(newData);
             updateTable();
 
+            // إعادة تعيين الحقول
             document.getElementById('itemCode').value = '';
+            document.getElementById('quantity').value = '1'; // إعادة الكمية للقيمة الافتراضية
             document.getElementById('recipient').value = '';
             document.getElementById('machine').value = '';
             showStatusMessage('تم حفظ البيانات بنجاح!', 'success');
         }
+        // === نهاية التعديل ===
 
+        // === بداية التعديل: تحديث دالة تحديث الجدول ===
         function updateTable() {
             const tableBody = document.getElementById('tableBody');
             const dataTable = document.getElementById('dataTable');
             tableBody.innerHTML = '';
             scannedData.forEach(data => {
                 const row = document.createElement('tr');
-                row.innerHTML = `<td>${data.itemCode}</td><td>${data.recipient}</td><td>${data.machine}</td><td>${data.date}</td>`;
+                // تحديث طريقة عرض البيانات في الجدول
+                row.innerHTML = `
+                    <td>${data["كود الصنف"]}</td>
+                    <td>${data["الكمية"]}</td>
+                    <td>${data["اسم المستلم"]}</td>
+                    <td>${data["اسم الماكينة"]}</td>
+                    <td>${data["التاريخ"]}</td>
+                `;
                 tableBody.appendChild(row);
             });
             if (scannedData.length > 0) {
                 dataTable.style.display = 'table';
             }
         }
+        // === نهاية التعديل ===
 
-        // استخدم نفس دالة المشاركة المعدلة من الرد السابق
+        // === بداية التعديل: تحديث دالة المشاركة ===
         function shareFile() {
             if (scannedData.length === 0) {
                 showStatusMessage('لا توجد بيانات لمشاركتها', 'error');
@@ -212,7 +230,8 @@
             }
             let shareText = "بيانات قطع الغيار:\n\n";
             scannedData.forEach(data => {
-                shareText += `كود الصنف: ${data.itemCode}\nاسم المستلم: ${data.recipient}\nاسم الماكينة: ${data.machine}\nالتاريخ: ${data.date}\n\n`;
+                // تحديث النص المرسل ليشمل الكمية
+                shareText += `كود الصنف: ${data["كود الصنف"]}\nالكمية: ${data["الكمية"]}\nاسم المستلم: ${data["اسم المستلم"]}\nاسم الماكينة: ${data["اسم الماكينة"]}\nالتاريخ: ${data["التاريخ"]}\n\n`;
             });
             const choice = prompt("اختر طريقة المشاركة:\n1. واتساب\n2. بريد إلكتروني\n3. تحميل ملف Excel");
             switch (choice) {
@@ -223,6 +242,7 @@
                     window.open(`mailto:?subject=بيانات قطع الغيار&body=${encodeURIComponent(shareText)}`);
                     break;
                 case '3':
+                    // لا حاجة لتعديل هنا لأن json_to_sheet يستخدم أسماء الحقول تلقائياً
                     const worksheet = XLSX.utils.json_to_sheet(scannedData);
                     const workbook = XLSX.utils.book_new();
                     XLSX.utils.book_append_sheet(workbook, worksheet, 'قطع الغيار');
@@ -234,8 +254,8 @@
                     break;
             }
         }
+        // === نهاية التعديل ===
 
-        // تهيئة التطبيق
         document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('startScan').addEventListener('click', startScan);
             document.getElementById('addManualCode').addEventListener('click', addManualCode);
@@ -245,4 +265,3 @@
     </script>
 </body>
 </html>
-
